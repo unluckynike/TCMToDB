@@ -1,0 +1,16 @@
+# 数据不入库：原始数据与可再生产物（脚本可一键再生）
+tcmtox_data/
+tcmtox-llm/data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 系统
+.DS_Store
+
+# 训练产物（后续加）
+*.safetensors
+*.bin
+*-checkpoint/
