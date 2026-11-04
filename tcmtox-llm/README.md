@@ -25,7 +25,7 @@ tcmtox-llm/
 |---|---|---|
 | 1. 数据构造 | 4 表 → 多任务指令数据：毒性药问答、方剂成分分析、靶点毒性知识、成分结构问答等；模板多样化 + 验证集切分 | `data/*.jsonl` |
 | 2. 基线评测 | 未微调底座 + few-shot prompt 先测，建立 baseline | 基线分数 |
-| 3. QLoRA 微调 | Qwen2.5-7B（或 GLM）单卡 QLoRA，中文医疗语感 + 领域知识注入 | LoRA checkpoint |
+| 3. QLoRA 微调 | 基座选当前代开源小模型（2026-11 推荐 Qwen3.5-9B，Apache 2.0；备选 GLM 同级开源款），单卡 24G QLoRA | LoRA checkpoint |
 | 4. 评测对比 | 自建评测集（事实一致性为主，防幻觉），对比底座 vs 微调 | 评测报告 |
 | 5. Demo | Gradio/RAG 兜底（检索原文再答），可演示问答 | demo 页面 |
 
