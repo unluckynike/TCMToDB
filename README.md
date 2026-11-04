@@ -1,44 +1,66 @@
 # TCMToDB
 
-围绕山东大学 [TCMToxDB](https://www.sdu-idea.cn/TCMToxDB)（毒性中药数据库）开放数据的应用与模型实验仓库。
+[English](README.md) | [简体中文](README_zh-CN.md)
 
-## 仓库结构
+Applications and model experiments built on [TCMToxDB](https://www.sdu-idea.cn/TCMToxDB) — a Toxic Medicinal Herb Database of Traditional Chinese Medicine by Shandong University — and its open downloads.
+
+> ⚠️ Research / experiment repo only. Nothing here is medical advice or a medical product.
+
+## What's Inside
+
+**Active subproject: [`tcmtox-llm/`](tcmtox-llm) — domain LLM fine-tuning for TCM toxicity QA**
+
+| Pipeline Stage | What It Does | Key Numbers |
+|---|---|---|
+| Toxicity grade cleaning | Align 229 DB herbs against the 83 toxic herbs of *Chinese Pharmacopoeia (2020)*; unify label casing; resolve conflicts with the pharmacopoeia as authority (originals kept in a separate column) | 43 → **72** graded herbs; **17** conflicts corrected (e.g. *Chuan Wu* "slightly toxic" → "highly toxic") |
+| Prescription parser | Pinyin dictionary matching + processing-prefix stripping (炒/制/醋/酒…) + dosage extraction over formula prescriptions | **4,522** formula–herb–dose records; **1,289 / 1,534** formulas covered; **0 false positives** (fuzzy matching deliberately disabled — it mislabeled non-toxic herbs as toxic in early trials) |
+| SFT data construction | 7 task types: single-herb QA, pharmacopoeia safety, formula analysis, target/ingredient facts, conservative dose comparison, **refusal & boundary training**, reverse lookup | **6,234** samples (train 5,512 / val 329 / test 393); entity-grouped split — **0/3,640 groups leak across sets**; refusal tasks ≥ **22%** of test |
+
+Design docs (Chinese): [direction survey](docs/方向规划.md) · [instruction data design](tcmtox-llm/docs/指令数据设计.md) · [baseline & training assessment](tcmtox-llm/eval/基线评测与训练评估方案.md)
+
+## Repo Layout
 
 ```
 TCMToDB/
-├── docs/
-│   └── 方向规划.md            # 四个可展开方向的调研与决策记录
-├── tcmtox_data/               # 原始数据（gitignore，不入库）
-│   ├── TCMTox_{formula,herb,ingredient,target}.csv
-│   ├── TCMTox_herb_clean.csv          # 衍生：毒性分级清洗（药典2020对齐）
-│   └── yd2020_toxic83.csv             # 衍生：药典83种毒性药材参考表
-├── tcmtox_scripts/            # 数据探查脚本
-└── tcmtox-llm/                # 子项目：毒性中药 LLM 问答（方向D）
-    ├── README.md
-    ├── docs/指令数据设计.md    # T1~T7 任务设计与实际产出记录
-    ├── scripts/
-    │   ├── clean_herb_toxicity.py         # 毒性分级清洗（43→72味）
-    │   ├── parse_formula_prescriptions.py # 处方解析（拼音+炮制前缀+剂量）
-    │   └── build_sft_data.py              # SFT 数据构造器（6234条）
-    └── data/                  # 衍生产物（gitignore，可由脚本再生）
-        ├── formula_herbs.csv  # 方剂-药材-剂量结构化表
-        └── sft/               # train/val/test + 分任务 jsonl
+├── docs/                      # direction survey & decisions
+├── tcmtox_data/               # raw + derived data (gitignored, regenerable)
+├── tcmtox_scripts/            # data profiling scripts
+└── tcmtox-llm/                # subproject: TCM toxicity LLM QA (direction D)
+    ├── scripts/               # cleaning → parsing → SFT builders
+    ├── data/                  # derived artifacts (gitignored, regenerable)
+    ├── train/                 # training configs (QLoRA)
+    ├── eval/                  # evaluation plan & scripts
+    └── demo/                  # inference demo
 ```
 
-## 数据来源与许可
+## Data Provenance & License
 
-- 数据来自 TCMToxDB 官方下载页（4 份 CSV）与《中国药典》2020 年版毒性药材公开名单
-- 本仓库**不分发任何数据文件**，仅包含生成数据的脚本；使用数据请遵循原数据库的许可条款
+- Sources: TCMToxDB official download page (4 CSVs: formula / herb / ingredient / target) and the toxic-herb grading list of *Chinese Pharmacopoeia (2020 edition)* via public pharmacist references.
+- This repo **does not distribute any data files** — only the scripts that generate them. Use of the underlying data follows the original database's terms.
 
-## 快速再生
+## Reproduce
 
 ```bash
-# 1. 毒性分级清洗
+# 1. toxicity grade cleaning (229 herbs × Pharmacopoeia 2020)
 python3 tcmtox-llm/scripts/clean_herb_toxicity.py
-# 2. 处方解析
+# 2. prescription parsing → formula_herbs.csv
 python3 tcmtox-llm/scripts/parse_formula_prescriptions.py
-# 3. SFT 数据构造
+# 3. SFT data construction → data/sft/*.jsonl
 python3 tcmtox-llm/scripts/build_sft_data.py
 ```
 
-脚本间通过 `tcmtox_data/` 与 `tcmtox-llm/data/` 衔接，全部可独立重跑，随机种子固定（SEED=42）。
+Deterministic (SEED=42). Each script reads `tcmtox_data/` and writes regenerable artifacts.
+
+## Status
+
+- [x] Direction survey & decision (predict / review / DTI / LLM → chose LLM-first)
+- [x] Grade cleaning, prescription parsing, SFT construction (6,234 samples)
+- [x] Baseline & training assessment (Qwen3.5-9B, multi × L20 48GB)
+- [ ] Baseline evaluation (zero-shot / few-shot on test set)
+- [ ] QLoRA fine-tuning + multi-GPU hyperparameter sweep
+- [ ] Comparison report + demo
+
+## Safety Notes
+
+- Medical hallucination is the primary failure mode: refusal training (T6) and conservative dose answers (T5, never conclude "safe/overdose" from batch input amounts) are first-class data tasks, and refusal behavior is tracked in every evaluation round.
+- 17 herb labels in the source DB conflict with *Pharmacopoeia 2020*; the cleaned dataset follows the pharmacopoeia and keeps the original label for audit (`Toxicity_conflict` / `Toxicity_original` columns).
