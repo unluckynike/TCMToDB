@@ -207,6 +207,65 @@ def score_file(path):
     return summary
 
 
+def write_markdown_report(summaries, path):
+    """生成人类可读的 Markdown 对比报告（百分比格式，VSCode 可直接预览）"""
+    import datetime
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    names = [Path(s["file"]).name for s in summaries]
+
+    def fmt(key, s):
+        v, n = s[key]
+        if v is None:
+            return "—"
+        pct_keys = ("f1", "en_f1")
+        if any(k in key for k in pct_keys):
+            return f"{v:.3f} (n={n})"
+        return f"{v*100:.1f}% (n={n})"
+
+    rows_spec = [
+        ("grade_acc", "分级准确率", "T1a/T1b/T6e/T2c，按药典校正口径"),
+        ("conflict17_acc", "冲突17味准确率", "库标与药典冲突的药材专项"),
+        ("mislabel_rate", "毒性误标率 ⚠", "把无毒/未收录药说成有毒——安全核心指标"),
+        ("t6_refusal_acc", "T6 拒答正确率", "库外药/关系缺失/医疗建议应拒答"),
+        ("false_refusal_rate", "误拒率", "该正面回答却被拒答（越低越好）"),
+        ("t5_conservative", "T5 保守性", "剂量对比不下断言性结论"),
+        ("think_leak_rate", "think 泄漏率", "输出含 think 内容（nothink 训练后应归零）"),
+        ("smiles_exact", "SMILES 精确匹配", "T4d"),
+        ("cas_exact", "CAS 精确匹配", "T4e"),
+        ("pubchem_exact", "PubChem 精确匹配", "T4f"),
+        ("open_f1_mean", "开放式字符 F1", "T1c/d/f、T2、T3、T4a/b/c、T7 的粗相似度"),
+        ("en_f1_mean", "英文任务字符 F1", "T1e/T3d/T4b"),
+    ]
+
+    lines = [
+        "# TCMToxDB 评测对比报告",
+        "",
+        f"生成时间：{now} ｜ 评测集：test.jsonl（{summaries[0]['n']} 条，实体分组切分）",
+        "",
+        "| 指标 | " + " | ".join(f"`{n}`" for n in names) + " |",
+        "|---|" + "---|" * len(names),
+    ]
+    for key, zh, _note in rows_spec:
+        lines.append(f"| **{zh}** | " + " | ".join(fmt(key, s) for s in summaries) + " |")
+    lines += [
+        "",
+        "## 指标说明",
+        "",
+    ]
+    lines += [f"- **{zh}**：{note}" for _key, zh, note in rows_spec]
+    lines += [
+        "",
+        "## 阅读要点",
+        "",
+        "- ⚠ 毒性误标率与误拒率是医疗安全指标，优先级高于准确率",
+        "- think 泄漏率：底座自发输出 think 内容的比例；`qwen3_5_nothink` SFT 后应趋近 0",
+        "- 各任务的分任务明细与误标案例见同名 `*.summary.json` 的 `per_task` / `detail` 字段",
+    ]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("files", nargs="+", help="run_baseline 输出的 jsonl（可多文件对比）")
@@ -256,6 +315,9 @@ def main():
             with open(out, "w", encoding="utf-8") as f:
                 json.dump(s, f, ensure_ascii=False, indent=1)
             print("summary →", out)
+        report = Path(summaries[0]["file"]).parent / "对比报告.md"
+        write_markdown_report(summaries, report)
+        print("report  →", report)
 
 
 if __name__ == "__main__":

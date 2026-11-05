@@ -56,7 +56,16 @@ def build_conversation(sample, exemplars):
 
 
 def pick_exemplars(train, task, rng, k=3):
-    """同任务优先，不足则从全局补"""
+    """为一条测试样本挑选 k 个 few-shot 示例（只从 train 集取）。
+
+    策略：优先取与测试题相同任务类型的样本（T1a 的题配 T1a 的示例），
+    让示例示范的是同类问题的答题格式与口径；同任务不足 k 条时用其他任务补齐。
+
+    零泄漏是结构保证的：数据切分按实体（药/方/靶点）分组，示例中出现的
+    实体必然与测试题实体不同——示例只教格式，结构上不可能泄答案。
+
+    rng 由调用方传入且种子固定，保证每次运行挑选结果可复现。
+    """
     same = [r for r in train if r["meta"]["task"] == task]
     pool = same if len(same) >= k else same + [r for r in train if r not in same]
     return rng.sample(pool, min(k, len(pool)))
