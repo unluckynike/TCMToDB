@@ -1,6 +1,8 @@
 # 数据不入库：原始数据与可再生产物（脚本可一键再生）
 tcmtox_data/
-tcmtox-llm/data/
+tcmtox-llm/data/sft/
+tcmtox-llm/data/formula_herbs.csv
+# 注意：tcmtox-llm/data/dataset_info.json 是配置，走 git
 
 # Python
 __pycache__/

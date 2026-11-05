@@ -1,0 +1,52 @@
+# TCMToxDB 毒性问答 QLoRA/LoRA 微调配置（LLaMA-Factory）
+# 模板必须 qwen3_5_nothink（关闭思考模式，与评测 enable_thinking=False 对齐）
+# 启动：cd ~/codeWorkSpace/tcmtox && CUDA_VISIBLE_DEVICES=0 llamafactory-cli train tcmtox-llm/train/qlora_qwen35_9b.yaml
+
+### 模型
+model_name_or_path: /home/zhl/codeWorkSpace/llms/Qwen3.5-9B
+trust_remote_code: true
+
+### 微调方法
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: all            # 全线性层
+lora_rank: 32
+lora_alpha: 64              # 2x rank
+lora_dropout: 0.05
+# 想跑 QLoRA（省显存）就解开下一行；L20 48G 跑 bf16 LoRA 完全放得下，bf16 保真度更高，默认不开
+# quantization_bit: 4
+
+### 数据
+dataset: tcmtox_sft
+eval_dataset: tcmtox_sft_val
+dataset_dir: tcmtox-llm/data   # 含 dataset_info.json（相对 ~/codeWorkSpace/tcmtox 仓库根）
+template: qwen3_5_nothink
+cutoff_len: 1024               # 数据 p90 输出仅 154 字，1024 token 足够
+overwrite_cache: true
+preprocessing_num_workers: 8
+
+### 输出
+output_dir: saves/tcmtox-qlora-v1
+logging_steps: 10
+save_steps: 300
+eval_steps: 100
+eval_strategy: steps
+plot_loss: true
+overwrite_output_dir: true
+
+### 训练超参
+per_device_train_batch_size: 8
+gradient_accumulation_steps: 2     # 有效 batch = 16
+learning_rate: 1.0e-4
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true
+gradient_checkpointing: true
+
+### 训练后合并导出（单独执行，勿与 train 同跑）：
+# llamafactory-cli export --model_name_or_path /home/zhl/codeWorkSpace/llms/Qwen3.5-9B \
+#   --adapter_name_or_path saves/tcmtox-qlora-v1 \
+#   --template qwen3_5_nothink --export_dir saves/tcmtox-merged-v1 \
+#   --export_size 4 --export_legacy_format false
