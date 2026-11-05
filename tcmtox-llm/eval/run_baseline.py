@@ -26,6 +26,7 @@
 import argparse
 import json
 import random
+import re
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -59,6 +60,23 @@ def pick_exemplars(train, task, rng, k=3):
     same = [r for r in train if r["meta"]["task"] == task]
     pool = same if len(same) >= k else same + [r for r in train if r not in same]
     return rng.sample(pool, min(k, len(pool)))
+
+
+# 与 LLaMA-Factory qwen3_5_nothink 训练模板对齐：
+# 该模板的 assistant 段不含任何 think 块，而 Qwen 官方 chat template 在
+# enable_thinking=False 时会插入空块 "<think>\n\n</think>\n"，需剥除以保证训练/推理格式一致
+EMPTY_THINK_RE = re.compile(r"<think>\s*</think>\n*")
+
+
+def render_prompts(llm_or_tok, convs, tokenizer=None):
+    """渲染对话 → 剥空 think 块 → 返回最终 prompt 字符串列表"""
+    tok = tokenizer if tokenizer is not None else llm_or_tok.get_tokenizer()
+    rendered = [
+        tok.apply_chat_template(
+            c, tokenize=False, add_generation_prompt=True, enable_thinking=False)
+        for c in convs
+    ]
+    return [EMPTY_THINK_RE.sub("", r) for r in rendered]
 
 
 def main():
@@ -107,12 +125,14 @@ def main():
     if args.dry_run:
         from transformers import AutoTokenizer
         tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-        for name, s, c in [("T1a-样例", test[0], convs[0])]:
-            rendered = tok.apply_chat_template(
-                c, tokenize=False, add_generation_prompt=True, enable_thinking=False)
-            print(f"===== {name} 渲染结果（enable_thinking=False）=====")
-            print(rendered)
-            print("===== 请与 LLaMA-Factory qwen3_5_nothink 模板渲染对比 =====")
+        s, c = test[0], convs[0]
+        raw = tok.apply_chat_template(
+            c, tokenize=False, add_generation_prompt=True, enable_thinking=False)
+        final = render_prompts(None, [c], tokenizer=tok)[0]
+        print("===== 原始渲染（enable_thinking=False）=====")
+        print(raw)
+        print("===== 剥空 think 块后（实际送入模型的 prompt，与训练模板一致）=====")
+        print(final)
         return
 
     from vllm import LLM, SamplingParams
@@ -126,8 +146,9 @@ def main():
     )
     sp = SamplingParams(temperature=0, max_tokens=args.max_tokens)
 
+    prompts = render_prompts(llm, convs)
     t0 = time.time()
-    outs = llm.chat(convs, sp, chat_template_kwargs={"enable_thinking": False})
+    outs = llm.generate(prompts, sp)
     dt = time.time() - t0
 
     out_dir = Path(args.out_dir)
