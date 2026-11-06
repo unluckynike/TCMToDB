@@ -20,3 +20,6 @@ saves/
 
 # 私人备忘（职业规划等，绝不入库）
 private/
+
+# ModelScope 发布工作目录（本地/服务器私有，不入库）
+tcmtox-llm/release/
