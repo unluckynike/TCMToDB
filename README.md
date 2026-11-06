@@ -16,7 +16,7 @@ Applications and model experiments built on [TCMToxDB](https://www.sdu-idea.cn/T
 | Prescription parser | Pinyin dictionary matching + processing-prefix stripping (炒/制/醋/酒…) + dosage extraction over formula prescriptions | **4,522** formula–herb–dose records; **1,289 / 1,534** formulas covered; **0 false positives** (fuzzy matching deliberately disabled — it mislabeled non-toxic herbs as toxic in early trials) |
 | SFT data construction | 7 task types: single-herb QA, pharmacopoeia safety, formula analysis, target/ingredient facts, conservative dose comparison, **refusal & boundary training**, reverse lookup | **6,234** samples (train 5,512 / val 329 / test 393); entity-grouped split — **0/3,640 groups leak across sets**; refusal tasks ≥ **22%** of test |
 
-Design docs (Chinese): [instruction data design](tcmtox-llm/docs/指令数据设计.md) · [baseline & training assessment](tcmtox-llm/eval/基线评测与训练评估方案.md)
+Design docs (Chinese): [data construction](tcmtox-llm/docs/数据构建.md) · [training & evaluation](tcmtox-llm/docs/训练与评测.md)
 
 ## Repo Layout
 
@@ -58,7 +58,7 @@ Deterministic (SEED=42). Each script reads `tcmtox_data/` and writes regenerable
 - [x] Baseline & training assessment (Qwen3.5-9B, multi × L20 48GB)
 - [x] Baseline evaluation (zero/few-shot) — grade accuracy 4.8% → 90.5% after SFT
 - [x] LoRA fine-tuning (single L20, 49 min) — 8/9 acceptance criteria passed
-- [x] Comparison report (verdict archived in eval/基线结果存档.md)
+- [x] Comparison report (verdict archived in tcmtox-llm/docs/训练与评测.md)
 - [ ] Demo (Gradio + RAG to close the SMILES/CAS exact-match gap)
 
 ## Safety Notes
