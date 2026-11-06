@@ -22,7 +22,7 @@
 
 ```
 TCMToDB/
-├── docs/                      # 方向调研与决策记录
+├── private/                   # 私人备忘（gitignore 隔离）
 ├── tcmtox_data/               # 原始与衍生数据（gitignore，可再生成）
 ├── tcmtox_scripts/            # 数据探查脚本
 └── tcmtox-llm/                # 子项目：毒性中药 LLM 问答（方向 D）
@@ -56,9 +56,10 @@ python3 tcmtox-llm/scripts/build_sft_data.py
 - [x] 方向调研与决策（毒性预测 / 处方审查 / DTI / LLM → 选定 LLM 优先）
 - [x] 分级清洗、处方解析、SFT 构造（6,234 条）
 - [x] 基线与训练评估（Qwen3.5-9B，多张 L20 48GB）
-- [ ] 基线评测（zero-shot / few-shot 全量 test）
-- [ ] QLoRA 微调 + 多卡超参扫描
-- [ ] 对比评测报告 + Demo
+- [x] 基线评测（zs/fs 全量）——SFT 后分级准确率 4.8% → 90.5%
+- [x] LoRA 微调（单卡 L20，49 分钟）——8/9 验收通过
+- [x] 对比评测报告（判定见 eval/基线结果存档.md）
+- [ ] Demo（Gradio + RAG，闭合 SMILES/CAS 精确匹配缺口）
 
 ## 安全性说明
 

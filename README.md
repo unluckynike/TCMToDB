@@ -22,7 +22,7 @@ Design docs (Chinese): [instruction data design](tcmtox-llm/docs/指令数据设
 
 ```
 TCMToDB/
-├── docs/                      # direction survey & decisions
+├── private/                   # personal memos (gitignored)
 ├── tcmtox_data/               # raw + derived data (gitignored, regenerable)
 ├── tcmtox_scripts/            # data profiling scripts
 └── tcmtox-llm/                # subproject: TCM toxicity LLM QA (direction D)
@@ -56,9 +56,10 @@ Deterministic (SEED=42). Each script reads `tcmtox_data/` and writes regenerable
 - [x] Direction survey & decision (predict / review / DTI / LLM → chose LLM-first)
 - [x] Grade cleaning, prescription parsing, SFT construction (6,234 samples)
 - [x] Baseline & training assessment (Qwen3.5-9B, multi × L20 48GB)
-- [ ] Baseline evaluation (zero-shot / few-shot on test set)
-- [ ] QLoRA fine-tuning + multi-GPU hyperparameter sweep
-- [ ] Comparison report + demo
+- [x] Baseline evaluation (zero/few-shot) — grade accuracy 4.8% → 90.5% after SFT
+- [x] LoRA fine-tuning (single L20, 49 min) — 8/9 acceptance criteria passed
+- [x] Comparison report (verdict archived in eval/基线结果存档.md)
+- [ ] Demo (Gradio + RAG to close the SMILES/CAS exact-match gap)
 
 ## Safety Notes
 
