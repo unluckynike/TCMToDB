@@ -17,3 +17,6 @@ saves/
 *.safetensors
 *.bin
 *-checkpoint/
+
+# 私人备忘（职业规划等，绝不入库）
+private/
