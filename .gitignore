@@ -12,7 +12,8 @@ __pycache__/
 # 系统
 .DS_Store
 
-# 训练产物（后续加）
+# 训练产物（服务器侧生成，绝不入库：checkpoint 超单文件限制且体积巨大）
+saves/
 *.safetensors
 *.bin
 *-checkpoint/
