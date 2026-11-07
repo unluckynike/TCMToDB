@@ -17,6 +17,7 @@
 
 完整对比与误标案例分析见 [docs/训练与评测.md](docs/训练与评测.md)；
 训练成本：单卡（L20）49 分钟，bf16 LoRA rank32 全线性层，3 epochs。
+**开源发布**：[合并版模型](https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B) · [LoRA adapter](https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B-lora) · [TCMToxQA-SFT 数据集](https://modelscope.cn/datasets/Venture/TCMToxQA-SFT)（ModelScope）
 
 ## 流水线（五步可复现）
 

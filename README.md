@@ -2,6 +2,8 @@
 
 [English](README.md) | [简体中文](README_zh-CN.md)
 
+[![Model](https://img.shields.io/badge/ModelScope-TCMTox--QA--Qwen3.5--9B-blue)](https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B) [![Dataset](https://img.shields.io/badge/Dataset-TCMToxQA--SFT-green)](https://modelscope.cn/datasets/Venture/TCMToxQA-SFT)
+
 Applications and model experiments built on [TCMToxDB](https://www.sdu-idea.cn/TCMToxDB) — a Toxic Medicinal Herb Database of Traditional Chinese Medicine by Shandong University — and its open downloads.
 
 > ⚠️ Research / experiment repo only. Nothing here is medical advice or a medical product.
@@ -37,6 +39,12 @@ TCMToDB/
 
 - Sources: TCMToxDB official download page (4 CSVs: formula / herb / ingredient / target) and the toxic-herb grading list of *Chinese Pharmacopoeia (2020 edition)* via public pharmacist references.
 - This repo **does not distribute any data files** — only the scripts that generate them. Use of the underlying data follows the original database's terms.
+
+## Open Releases (ModelScope)
+
+- 🤖 **Model** (merged, ready-to-use): https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B
+- 🔧 **LoRA adapter** (86MB, mount on the base model): https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B-lora
+- 📊 **Dataset** (TCMToxQA-SFT, 6,234 samples): https://modelscope.cn/datasets/Venture/TCMToxQA-SFT
 
 ## Reproduce
 
