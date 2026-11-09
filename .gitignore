@@ -23,3 +23,15 @@ private/
 
 # ModelScope 发布工作目录（本地/服务器私有，不入库）
 tcmtox-llm/release/
+
+# RAG 密钥配置（API key / 服务地址，绝不入库：仓库已公开）
+.env
+.env.*
+!.env.example
+*.env.local
+
+# RAG 派生产物（语料/向量/本地索引——由 build_corpus.py 与灌库脚本再生）
+tcmtox-llm/rag/corpus.jsonl
+tcmtox-llm/rag/entities.json
+tcmtox-llm/rag/qdrant_local/
+tcmtox-llm/rag/vectors.npz
