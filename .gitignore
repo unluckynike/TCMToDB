@@ -35,3 +35,6 @@ tcmtox-llm/rag/corpus.jsonl
 tcmtox-llm/rag/entities.json
 tcmtox-llm/rag/qdrant_local/
 tcmtox-llm/rag/vectors.npz
+
+# Docker 部署密钥（Neo4j 密码等，绝不入库）
+deploy/.env

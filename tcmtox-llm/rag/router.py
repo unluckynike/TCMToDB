@@ -20,7 +20,7 @@ QTYPE_RULES = [
     # 标识符类：问 SMILES/CAS/分子式——需要成分实体的精确查表
     ("identifier", r"SMILES|CAS号|PubChem|分子式|分子量|结构式"),
     # 医疗建议类：一律拒答，不检索
-    ("advice", r"怎么治|如何治疗|能不能吃|该吃什么|开个方|吃多久|会好吗|剂量.*建议|推荐.*用量.*病"),
+    ("advice", r"怎么治|如何治疗|能不能吃|该吃什么|开个方|吃多久|会好吗|剂量.*建议|推荐.*用量.*病|能吃|可以吃|长期服用|推荐.*方子"),
     # 机制/关系类：药材的成分/靶点——关系数据缺失，本轮拒答保护（不检索）
     ("mechanism", r"含有哪些(化学)?成分|有哪些成分|作用于哪些|哪些靶点|靶点有哪些|靶点与哪些|与哪些毒性类型|作用机制|是什么成分"),
     # 方剂分析类
@@ -119,6 +119,15 @@ class EntityRouter:
             result.reason = "药材-成分/靶点关系缺失：不检索，按 T6c 训练行为拒答"
             return result
 
+        # 分级问答特殊化（v4 实测）：SFT 已把药典校正口径压进权重（纯模型 90.5%），
+        # 任何上下文注入都是净干扰（精确记录 81%、干扰记录 42.9%）——
+        # grade 类完全不检索、不注入，走纯模型路径
+        if qtype == "grade":
+            result.retrieve_semantic = False
+            result.precise_records = []
+            result.reason = "分级问答：SFT 已内化口径，纯模型路径最优（v4 实测）"
+            return result
+
         # 守卫 3：分级/标识符问题但实体未命中（T6a/T6b）
         if qtype in ("grade", "identifier") and not ents:
             result.retrieve_semantic = False
@@ -131,11 +140,38 @@ class EntityRouter:
             result.reason = "SMILES/CAS 类问题无成分命中：不检索（防诱导编造）"
             return result
 
-        # 查表：实体命中即返回其语料记录
+        # 查表：实体命中即收集其语料记录
         for etype, name in ents:
             rec = self.by_name.get(name)
             if rec:
                 result.precise_records.append(rec)
+
+        # 注入过滤（v3 核心）：只注入"记录确实包含能回答此类问题的字段"的条目。
+        # 注入空记录（如无分级药材的空 grade 字段）会诱导模型凭权重瞎猜——
+        # 实测分级 90.5%→42.9% 的主因。过滤后为空 → 不注入、不检索，
+        # 交还模型训练行为（T6a 口径："无分级记录"）
+        CAN_ANSWER = {
+            "grade": lambda p: bool(p.get("grade")),
+            "safety": lambda p: bool(p.get("dosage") or p.get("precaution")),
+            "identifier": lambda p: bool(p.get("smiles") or p.get("cas")
+                                         or p.get("pubchem")),
+            "mechanism": lambda p: bool(p.get("toxicity_types")
+                                        or p.get("description")),
+        }
+        if qtype in CAN_ANSWER and result.precise_records:
+            keep = [r for r in result.precise_records
+                    if CAN_ANSWER[qtype](r.get("payload", {}))]
+            if keep:
+                # 实体锚定 + 记录可答：仅用精确记录，跳过语义检索防邻近干扰
+                result.precise_records = keep
+                result.retrieve_semantic = False
+                result.reason = (f"精确记录 {len(keep)} 条含可答字段，"
+                                 f"跳过语义检索防邻近干扰")
+                return result
+            result.precise_records = []
+            result.retrieve_semantic = False
+            result.reason = "命中实体但记录无该问题所需字段：不注入，交还训练行为"
+            return result
 
         # 机制问题但非药材主语（如直接问基因）→ 放行语义检索
         result.reason = (f"实体命中 {len(ents)} 个，精确记录 "

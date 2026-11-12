@@ -23,6 +23,15 @@ META_KEY = "_collection_meta"   # 存 provider/dim 的哨兵 point id
 def load_env(env_path=None):
     """极简 .env 解析（KEY=VALUE 行），已存在的环境变量优先"""
     env = dict(os.environ)
+    # 内网/本地服务必须直连——macOS 系统代理会把 python requests 的内网请求
+    # 转发给外网代理（127.0.0.1:7890），代理够不到内网 IP → Connection refused。
+    # requests 的 no_proxy 支持精确主机名匹配，逐个豁免（不影响其他域走代理）
+    bypass = env.get("NO_PROXY_HOSTS",
+                     "localhost,127.0.0.1")   # 内网服务地址经 .env 配置
+    os.environ["NO_PROXY"] = (os.environ.get("NO_PROXY", "") + "," + bypass).lstrip(",")
+    os.environ["no_proxy"] = (os.environ.get("no_proxy", "") + "," + bypass).lstrip(",")
+    env["NO_PROXY"] = os.environ["NO_PROXY"]
+    env["no_proxy"] = os.environ["no_proxy"]
     if env_path is None:
         env_path = Path(__file__).resolve().parent / ".env"
     if Path(env_path).exists():
@@ -64,17 +73,25 @@ class ApiEmbedding:
         self.name = f"api-{model}"
         self.dim = None      # 首次调用后确定
 
-    def embed(self, texts, batch_size=32):
+    def embed(self, texts, batch_size=32, retries=4):
         import numpy as np
+        import time as _time
         vecs = []
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            r = self.session.post(
-                f"{self.base}/v1/embeddings",
-                headers={"Authorization": f"Bearer {self.key}"},
-                json={"model": self.model, "input": batch},
-                timeout=self.timeout)
-            r.raise_for_status()
+            for attempt in range(retries):
+                try:
+                    r = self.session.post(
+                        f"{self.base}/v1/embeddings",
+                        headers={"Authorization": f"Bearer {self.key}"},
+                        json={"model": self.model, "input": batch},
+                        timeout=self.timeout)
+                    r.raise_for_status()
+                    break
+                except Exception:
+                    if attempt == retries - 1:
+                        raise
+                    _time.sleep(2 ** attempt)   # 2/4/8s 退避
             data = sorted(r.json()["data"], key=lambda d: d["index"])
             vecs.extend([d["embedding"] for d in data])
         arr = np.asarray(vecs, dtype=np.float32)
@@ -102,17 +119,24 @@ class ApiRerank:
         self.timeout = timeout
         self.name = f"api-{model}"
 
-    def rerank(self, query, docs, top_k):
+    def rerank(self, query, docs, top_k, retries=3):
         import requests
-        r = self.session.post(
-            f"{self.base}/v1/rerank",
-            headers={"Authorization": f"Bearer {self.key}"},
-            json={"model": self.model, "query": query, "documents": docs,
-                  "top_n": top_k},
-            timeout=self.timeout)
-        r.raise_for_status()
-        results = sorted(r.json()["results"], key=lambda x: -x["relevance_score"])
-        return [(x["index"], x["relevance_score"]) for x in results][:top_k]
+        import time as _time
+        for attempt in range(retries):
+            try:
+                r = self.session.post(
+                    f"{self.base}/v1/rerank",
+                    headers={"Authorization": f"Bearer {self.key}"},
+                    json={"model": self.model, "query": query, "documents": docs,
+                          "top_n": top_k},
+                    timeout=self.timeout)
+                r.raise_for_status()
+                results = sorted(r.json()["results"], key=lambda x: -x["relevance_score"])
+                return [(x["index"], x["relevance_score"]) for x in results][:top_k]
+            except Exception:
+                if attempt == retries - 1:
+                    raise
+                _time.sleep(2 ** attempt)
 
 
 class LocalRerank:
@@ -153,11 +177,14 @@ def make_reranker(provider, env):
 
 # ---------------------------------------------------------------- 向量存储
 class QdrantStore:
-    """Qdrant 本地模式（path 持久化）。切换服务模式只改构造参数。"""
+    """Qdrant：服务模式（host/port，配合 docker compose）或本地模式（path 持久化），API 全同。"""
 
-    def __init__(self, path, collection="tcmtodb"):
+    def __init__(self, collection="tcmtodb", host=None, port=6333, path=None):
         from qdrant_client import QdrantClient
-        self.client = QdrantClient(path=path)
+        if host:
+            self.client = QdrantClient(host=host, port=int(port))
+        else:
+            self.client = QdrantClient(path=path)
         self.collection = collection
         self.provider_meta = {}
 
@@ -184,6 +211,9 @@ class QdrantStore:
                 payload={"_meta": provider_name, "dim": dim})])
         self.provider_meta = {"provider": provider_name, "dim": dim}
 
+    def count(self):
+        return self.client.count(self.collection, exact=True).count
+
     def upsert(self, records, vectors, batch=512):
         from qdrant_client.models import PointStruct
         # id=0 是哨兵点，正文从 1 开始
@@ -201,7 +231,7 @@ class QdrantStore:
             flt = Filter(must=[FieldCondition(
                 key="entity_type", match=MatchValue(value=entity_type))])
         hits = self.client.query_points(
-            self.collection, query=vector.tolist(), limit=top_k,
+            self.collection, query=list(vector), limit=top_k,
             query_filter=flt).points
         return [(h.payload, h.score) for h in hits
                 if h.payload and not h.payload.get("_meta")]
@@ -230,6 +260,9 @@ class NumpyStore:
                 f"({self.provider_meta.get('dim')}维) 构建，当前 provider={provider_name}({dim}维)。"
                 f"删除 {self.npz} 后重建。")
 
+    def count(self):
+        return len(self.records)
+
     def upsert(self, records, vectors):
         self.records = list(records)
         self.matrix = vectors
@@ -255,8 +288,13 @@ class NumpyStore:
 def make_store(backend, env):
     rag_dir = Path(__file__).resolve().parent
     if backend == "qdrant":
-        path = env.get("QDRANT_PATH", str(rag_dir / "qdrant_local"))
-        return QdrantStore(path=path, collection=env.get("QDRANT_COLLECTION", "tcmtodb"))
+        collection = env.get("QDRANT_COLLECTION", "tcmtodb")
+        if env.get("QDRANT_HOST"):   # 服务模式（docker compose 部署）
+            return QdrantStore(collection=collection,
+                               host=env["QDRANT_HOST"],
+                               port=int(env.get("QDRANT_PORT", 6333)))
+        return QdrantStore(collection=collection,      # 本地文件模式
+                           path=env.get("QDRANT_PATH", str(rag_dir / "qdrant_local")))
     if backend == "numpy":
         return NumpyStore(path=rag_dir / "vectors.npz")
     raise ValueError(f"未知存储后端: {backend}")
@@ -281,19 +319,32 @@ class Retriever:
         self.store.ensure_collection(dim, self.embedding.name)
         if hasattr(self.store, "matrix") and self.store.matrix is not None:
             return   # numpy 降级：已有索引
-        records, _ = self.store.search(probe[0].tolist(), top_k=1)
-        if records:
-            return   # 已灌库
-        print(f"[index] 全量向量化 {len(self.records)} 条（provider={self.embedding.name}，{dim} 维）...")
+        try:
+            current = self.store.count()
+        except Exception:
+            current = 0
+        if current >= len(self.records):
+            return   # 已灌库且数量一致
+        print(f"[index] 语料 {len(self.records)} 条，库中 {current} 条 → 全量向量化"
+              f"（provider={self.embedding.name}，{dim} 维）...")
         texts = [r["text"] for r in self.records]
         vecs = self.embedding.embed(texts)
         self.store.upsert(self.records, vecs)
         print(f"[index] 完成，{vecs.shape[1]} 维")
 
-    def semantic(self, question, entity_type=None):
+    def semantic(self, question, entity_type=None, retries=3):
         qvec = self.embedding.embed([question])[0]
-        hits = self.store.search(qvec, top_k=self.recall_k,
-                                 entity_type=entity_type)
+        hits = []
+        for attempt in range(retries):     # 存储/网络抖动重试（间歇性拒绝连接实测有效）
+            try:
+                hits = self.store.search(qvec, top_k=self.recall_k,
+                                         entity_type=entity_type)
+                break
+            except Exception:
+                if attempt == retries - 1:
+                    raise
+                import time as _time
+                _time.sleep(3 * (attempt + 1))
         docs = [r for r, _ in hits]
         if self.reranker and docs:
             try:

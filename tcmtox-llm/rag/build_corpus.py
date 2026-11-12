@@ -178,6 +178,19 @@ def main():
                        "title": herb_cn, "text": text, "payload": payload})
         rev += 1
 
+    # ---------------- 5.6) 分级清单文档（T7 聚合问题直接命中） ----------------
+    grade_members = {}
+    for r in corpus:
+        if r.get("entity_type") == "herb" and r.get("payload", {}).get("grade"):
+            grade_members.setdefault(r["payload"]["grade"], set()).add(r["payload"]["cn_name"])
+    for gname, members in sorted(grade_members.items()):
+        names = sorted(members)
+        text = (f"《中国药典》2020年版与TCMToxDB库内标注为「{gname}」的药材共 {len(names)} 味："
+                + "、".join(names) + "。")
+        payload = {"entity_type": "grade_list", "grade": gname, "members": names}
+        corpus.append({"id": f"gradelist:{gname}", "entity_type": "grade_list",
+                       "title": f"{gname}药材清单", "text": text, "payload": payload})
+
     # ---------------- 写出 ----------------
     with open(OUT / "corpus.jsonl", "w", encoding="utf-8") as f:
         for r in corpus:

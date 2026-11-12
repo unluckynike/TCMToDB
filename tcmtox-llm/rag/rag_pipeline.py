@@ -27,16 +27,24 @@ from retriever import Retriever, make_embedding, make_reranker, make_store, load
 EMPTY_THINK_RE = re.compile(r"<think>\s*</think>\n*")
 CONTEXT_HEADER = ("以下是与问题相关的库内记录，供回答参考；"
                   "若记录不足以回答或问题超出库范围，请如实说明，不要编造。\n\n")
+CONTEXT_HEADER_SAFETY = (CONTEXT_HEADER
+                         + "回答请涵盖两方面：①该药材的毒性分级；②与问题相关的用法用量与注意事项。\n\n")
 
 # 策略 B：按问题类型选字段（precise 记录的 payload 字段）
 QTYPE_FIELDS = {
     "identifier": ["smiles", "cas", "pubchem", "formula", "weight"],
     "grade": ["grade", "grade_source", "dosage", "precaution"],
-    "safety": ["dosage", "precaution", "grade"],
+    "safety": ["grade", "dosage", "precaution"],
     "mechanism": ["toxicity_types", "description", "uniprot"],
     "formula": ["toxic_herbs", "diseases"],
     "advice": [], "list": [], "other": [],
 }
+
+
+def sanitize(text):
+    """注入卫生：剥离"原标XX"弃用标签说明——防止弃用标签经上下文复活
+    （实测：RAG 上下文含'原标Slightly Toxic'会诱导模型输出旧标签，分级 90.5→66.7 的主因之一）"""
+    return re.sub(r"，?原标[^；）\n]*", "", str(text))
 
 
 def render_record(rec, strategy, qtype="other"):
@@ -47,8 +55,8 @@ def render_record(rec, strategy, qtype="other"):
         if rec["entity_type"] == "herb" and qtype in QTYPE_FIELDS:
             fields = QTYPE_FIELDS[qtype]
             pay = rec.get("payload", {})
-            parts = [f"{k}: {pay[k]}" for k in fields if pay.get(k)]
-            body = f"{rec['title']}。" + "；".join(parts) if parts else rec["text"][:500]
+            parts = [f"{k}: {sanitize(pay[k])}" for k in fields if pay.get(k)]
+            body = f"{rec['title']}。" + "；".join(parts) if parts else sanitize(rec["text"][:500])
         else:
             body = rec["text"][:500]
     return f"- [{rec['entity_type']}] {body}"
@@ -67,7 +75,9 @@ def assemble(question, route_result, semantic_records, strategy):
         blocks.append(render_record(rec, strategy, route_result.qtype))
     if not blocks:
         return question, ""
-    context = CONTEXT_HEADER + "\n".join(f"[{i+1}] {b}" for i, b in enumerate(blocks)) + "\n\n"
+    header = (CONTEXT_HEADER_SAFETY if route_result.qtype == "safety"
+              else CONTEXT_HEADER)
+    context = header + "\n".join(f"[{i+1}] {b}" for i, b in enumerate(blocks)) + "\n\n"
     return context + question, context
 
 
@@ -86,8 +96,10 @@ def main():
     ap.add_argument("--recall-k", type=int, default=50)
     ap.add_argument("--top-k", type=int, default=5)
     ap.add_argument("--backend", choices=["qdrant", "numpy"], default="qdrant")
-    ap.add_argument("--embed", choices=["local", "api"], default="local")
+    ap.add_argument("--embed", choices=["local", "api"], default="api")
     ap.add_argument("--rerank", choices=["api", "local", "none"], default="api")
+    ap.add_argument("--llm-mode", choices=["api", "local"], default="api",
+                    help="api=调 GPU 服务器 vllm serve 的 OpenAI 兼容接口；local=进程内加载")
     ap.add_argument("--dry-run", action="store_true", help="只打印路由与组装结果，不加载模型")
     args = ap.parse_args()
 
@@ -120,15 +132,6 @@ def main():
 
     retriever.ensure_index()
 
-    from vllm import LLM, SamplingParams
-    llm = LLM(model=args.model, dtype="bfloat16",
-              max_model_len=4096, gpu_memory_utilization=args.gpu_mem,
-              trust_remote_code=True)
-    sp = SamplingParams(temperature=0, max_tokens=args.max_tokens)
-
-    from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-
     convs, metas = [], []
     t0 = time.time()
     n_retrieved = 0
@@ -139,25 +142,57 @@ def main():
         prompt, ctx = assemble(s["instruction"], r, sem, args.strategy)
         if ctx:
             n_retrieved += 1
-        msgs = [{"role": "user", "content": prompt}]
-        convs.append(msgs)
+        convs.append([{"role": "user", "content": prompt}])
         metas.append((s, r, ctx))
 
-    rendered = [tok.apply_chat_template(c, tokenize=False,
-                add_generation_prompt=True, enable_thinking=False)
-                for c in convs]
-    rendered = [EMPTY_THINK_RE.sub("", t) for t in rendered]
+    # prompt 渲染：api 模式直接用与 qwen3_5_nothink 训练模板逐字符一致的常量
+    # 格式（dry-run 实测验证过），零 transformers 依赖；local 模式走 transformers
+    if args.llm_mode == "api":
+        rendered = ["<|im_start|>user\n" + c[0]["content"] + "<|im_end|>\n<|im_start|>assistant\n"
+                    for c in convs]
+        rendered = [EMPTY_THINK_RE.sub("", t) for t in rendered]
 
-    outs = llm.generate(rendered, sp)
+    if args.llm_mode == "api":
+        # GPU 服务器 vllm serve 常驻，走 /v1/completions（prompt 与训练格式逐字符一致）
+        import requests as rq
+        from concurrent.futures import ThreadPoolExecutor
+        base = env.get("LLM_BASE_URL", "http://localhost:8000/v1").rstrip("/")
+        headers = {"Authorization": f"Bearer {env.get('LLM_API_KEY', 'EMPTY')}"}
+        model_name = env.get("LLM_MODEL", "tcmtox-qa")
+
+        def gen_one(prompt):
+            r = rq.post(f"{base}/completions", headers=headers,
+                        json={"model": model_name, "prompt": prompt,
+                              "temperature": 0, "max_tokens": args.max_tokens},
+                        timeout=180)
+            r.raise_for_status()
+            return r.json()["choices"][0]["text"]
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            texts = list(pool.map(gen_one, rendered))
+    else:
+        from transformers import AutoTokenizer
+        tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+        rendered = [tok.apply_chat_template(c, tokenize=False,
+                    add_generation_prompt=True, enable_thinking=False)
+                    for c in convs]
+        rendered = [EMPTY_THINK_RE.sub("", t2) for t2 in rendered]
+        from vllm import LLM, SamplingParams
+        llm = LLM(model=args.model, dtype="bfloat16",
+                  max_model_len=4096, gpu_memory_utilization=args.gpu_mem,
+                  trust_remote_code=True)
+        sp = SamplingParams(temperature=0, max_tokens=args.max_tokens)
+        outs = llm.generate(rendered, sp)
+        texts = [o.outputs[0].text for o in outs]
     dt = time.time() - t0
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{tag}_{args.condition}.jsonl"
     with open(out_path, "w", encoding="utf-8") as f:
-        for s, o, (sample, r, ctx) in zip(test, outs, metas):
+        for s, (sample, r, ctx), o in zip(test, metas, texts):
             rec = {"instruction": sample["instruction"], "input": "",
-                   "response": o.outputs[0].text, "gold": sample["output"],
+                   "response": o, "gold": sample["output"],
                    "meta": sample["meta"], "condition": args.condition,
                    "model": args.model,
                    "rag": {"used": bool(ctx), "strategy": args.strategy,

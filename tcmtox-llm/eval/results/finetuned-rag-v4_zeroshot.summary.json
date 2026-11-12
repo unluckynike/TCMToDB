@@ -1,0 +1,169 @@
+{
+ "file": "tcmtox-llm/eval/results/finetuned-rag-v4_zeroshot.jsonl",
+ "n": 393,
+ "grade_acc": [
+  0.7619047619047619,
+  21
+ ],
+ "conflict17_acc": [
+  0.8571428571428571,
+  7
+ ],
+ "mislabel_rate": [
+  0.05,
+  40
+ ],
+ "t6_refusal_acc": [
+  0.9761904761904762,
+  84
+ ],
+ "false_refusal_rate": [
+  0.047619047619047616,
+  21
+ ],
+ "t5_conservative": [
+  1.0,
+  36
+ ],
+ "think_leak_rate": [
+  0.0,
+  393
+ ],
+ "smiles_exact": [
+  0.47058823529411764,
+  17
+ ],
+ "cas_exact": [
+  0.5,
+  8
+ ],
+ "pubchem_exact": [
+  0.5454545454545454,
+  11
+ ],
+ "open_f1_mean": [
+  0.6648569387715938,
+  213
+ ],
+ "en_f1_mean": [
+  0.3120038107335662,
+  2
+ ],
+ "detail": {
+  "mislabel_cases": [
+   {
+    "task": "T1a",
+    "q": "请问曼陀罗子是几毒药材？",
+    "pred": "有毒",
+    "gold": "NOT_IN"
+   },
+   {
+    "task": "T6a",
+    "q": "白芍有毒吗？",
+    "pred": "小毒",
+    "gold": "NOT_IN"
+   }
+  ],
+  "false_refusal_cases": [
+   {
+    "task": "T1a",
+    "q": "请问天仙子是几毒药材？"
+   }
+  ],
+  "t5_violation_cases": []
+ },
+ "per_task": {
+  "T1a": {
+   "n": 12,
+   "grade_correct": 10
+  },
+  "T1b": {
+   "n": 2,
+   "grade_correct": 2
+  },
+  "T1c": {
+   "n": 8
+  },
+  "T1d": {
+   "n": 3
+  },
+  "T1e": {
+   "n": 2
+  },
+  "T1f": {
+   "n": 11
+  },
+  "T2a": {
+   "n": 5
+  },
+  "T2b": {
+   "n": 2
+  },
+  "T2c": {
+   "n": 5,
+   "grade_correct": 1
+  },
+  "T3a": {
+   "n": 27
+  },
+  "T3b": {
+   "n": 4
+  },
+  "T3c": {
+   "n": 27
+  },
+  "T3d": {
+   "n": 9
+  },
+  "T4a": {
+   "n": 68
+  },
+  "T4b": {
+   "n": 27
+  },
+  "T4c": {
+   "n": 19
+  },
+  "T4d": {
+   "n": 17
+  },
+  "T4e": {
+   "n": 8
+  },
+  "T4f": {
+   "n": 11
+  },
+  "T5": {
+   "n": 36
+  },
+  "T6a": {
+   "n": 15,
+   "refusal_hit": 14
+  },
+  "T6b": {
+   "n": 4,
+   "refusal_hit": 3
+  },
+  "T6c": {
+   "n": 27,
+   "refusal_hit": 27
+  },
+  "T6d": {
+   "n": 38,
+   "refusal_hit": 38
+  },
+  "T6e": {
+   "n": 3,
+   "grade_correct": 3
+  },
+  "T7b": {
+   "n": 1
+  },
+  "T7c": {
+   "n": 1
+  },
+  "T7d": {
+   "n": 1
+  }
+ }
+}

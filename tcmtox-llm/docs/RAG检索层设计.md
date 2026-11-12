@@ -21,7 +21,7 @@ API（newapi `qwen3-embedding`，4096 维）实测可用，降级为**可选增�
 `EMBEDDING_PROVIDER=api|local` 经 `.env` 切换；**同一 collection 的索引与查询
 强制同 provider**（collection 元数据记录 provider 名与维度，启动时校验）。
 
-预留（第二轮）：Neo4j（`172.16.7.21` 不可达 + 关系表未到位，双重前提未满足）；
+预留（第二轮）：Neo4j（图谱实例暂不可达 + 关系表未到位，双重前提未满足）；
 关系表到手后启用多跳机制问答（药材→成分→靶点→毒性类型），router 输出结构
 已预留 `graph_context` 字段。
 
