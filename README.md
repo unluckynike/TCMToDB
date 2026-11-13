@@ -41,6 +41,12 @@ TCMToDB/
 - Sources: TCMToxDB official download page (4 CSVs: formula / herb / ingredient / target) and the toxic-herb grading list of *Chinese Pharmacopoeia (2020 edition)* via public pharmacist references.
 - This repo **does not distribute any data files** — only the scripts that generate them. Use of the underlying data follows the original database's terms.
 
+## UI Preview
+
+![Toxic herb QA interface](tcmtox-llm/assets/qa-ui.png)
+
+(Streaming QA · retrieval pipeline visualization · interactive Neo4j knowledge graph — see [tcmtox-llm](tcmtox-llm))
+
 ## Open Releases (ModelScope)
 
 - 🤖 **Model** (merged, ready-to-use): https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B

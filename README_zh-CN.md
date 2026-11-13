@@ -41,6 +41,12 @@ TCMToDB/
 - 来源：TCMToxDB 官方下载页（4 份 CSV：方剂/草药/成分/靶点），以及经公开药师科普整理的《中国药典》（2020 版）毒性药材分级名单
 - 本仓库**不分发任何数据文件**，仅包含生成数据的脚本；底层数据的使用遵循原数据库的许可条款
 
+## 界面预览
+
+![毒性中药智能问答界面](tcmtox-llm/assets/qa-ui.png)
+
+（流式问答 · 检索过程可视化 · Neo4j 知识图谱交互——子项目详见 [tcmtox-llm](tcmtox-llm)）
+
 ## 开源发布（ModelScope）
 
 - 🤖 **模型**（合并版，下载即用）：https://modelscope.cn/models/Venture/TCMTox-QA-Qwen3.5-9B
