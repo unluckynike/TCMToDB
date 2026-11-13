@@ -32,7 +32,8 @@ TCMToDB/
     ├── data/                  # 衍生产物（gitignore，可再生成）
     ├── train/                 # 训练配置（QLoRA）
     ├── eval/                  # 评测方案与脚本
-    └── demo/                  # 推理演示
+    ├── rag/         # RAG 检索层 + Neo4j 图谱 + 问答服务
+    └── docs/      # 数据构建/训练评测/RAG 设计文档
 ```
 
 ## 数据来源与许可
@@ -67,7 +68,9 @@ python3 tcmtox-llm/scripts/build_sft_data.py
 - [x] 基线评测（zs/fs 全量）——SFT 后分级准确率 4.8% → 90.5%
 - [x] LoRA 微调（单卡 L20，49 分钟）——8/9 验收通过
 - [x] 对比评测报告（判定见 tcmtox-llm/docs/训练与评测.md）
-- [ ] Demo（Gradio + RAG，闭合 SMILES/CAS 精确匹配缺口）
+- [x] RAG 检索层（五轮迭代，系统级验收 9/9；SMILES 精确匹配 5.9% → 52.9%）
+- [x] Neo4j 知识图谱（1,804 节点 / ~4,600 边，含十八反十九畏配伍禁忌边）
+- [x] 流式问答服务 + 本草×朱砂可视化界面（检索过程/图谱/统计三面板）
 
 ## 安全性说明
 

@@ -32,7 +32,8 @@ TCMToDB/
     ├── data/                  # derived artifacts (gitignored, regenerable)
     ├── train/                 # training configs (QLoRA)
     ├── eval/                  # evaluation plan & scripts
-    └── demo/                  # inference demo
+    ├── rag/                   # RAG retrieval layer + Neo4j graph + streaming QA service
+    └── docs/                  # data construction / training & eval / RAG design docs
 ```
 
 ## Data Provenance & License
@@ -67,7 +68,9 @@ Deterministic (SEED=42). Each script reads `tcmtox_data/` and writes regenerable
 - [x] Baseline evaluation (zero/few-shot) — grade accuracy 4.8% → 90.5% after SFT
 - [x] LoRA fine-tuning (single L20, 49 min) — 8/9 acceptance criteria passed
 - [x] Comparison report (verdict archived in tcmtox-llm/docs/训练与评测.md)
-- [ ] Demo (Gradio + RAG to close the SMILES/CAS exact-match gap)
+- [x] RAG retrieval layer (5 iterations, system-level acceptance 9/9; SMILES exact-match 5.9% → 52.9%)
+- [x] Neo4j knowledge graph (1,804 nodes / ~4,600 edges incl. incompatibility edges)
+- [x] Streaming QA service + Bencao-Cinnabar visualization UI (retrieval pipeline / graph / stats)
 
 ## Safety Notes
 
