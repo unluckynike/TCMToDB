@@ -139,15 +139,25 @@ def main():
     convs, metas = [], []
     t0 = time.time()
     n_retrieved = 0
-    for s in test:
+    n_sem_err = 0
+    for idx, s in enumerate(test):
         r = router.route(s["instruction"])
-        sem = (retriever.semantic(s["instruction"])
-               if r.retrieve_semantic else [])
+        sem = []
+        try:
+            if r.retrieve_semantic:
+                sem = retriever.semantic(s["instruction"])
+        except Exception as e:
+            n_sem_err += 1
+            print(f"[warn] 样本{idx+1} 检索失败，降级无上下文: {str(e)[:70]}", flush=True)
         prompt, ctx = assemble(s["instruction"], r, sem, args.strategy)
         if ctx:
             n_retrieved += 1
         convs.append([{"role": "user", "content": prompt}])
         metas.append((s, r, ctx))
+        if (idx + 1) % 50 == 0:
+            el = time.time() - t0
+            print(f"[进度] {idx+1}/{len(test)} 条 | 已用时 {el:.0f}s | "
+                  f"注入 {n_retrieved} | 检索降级 {n_sem_err}", flush=True)
 
     # prompt 渲染：api 模式直接用与 qwen3_5_nothink 训练模板逐字符一致的常量
     # 格式（dry-run 实测验证过），零 transformers 依赖；local 模式走 transformers
