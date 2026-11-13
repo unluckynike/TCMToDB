@@ -1,0 +1,54 @@
+# DPO 误拒校准训练配置（LLaMA-Factory）
+# 原理：SFT 只推高正确答案概率，从不压制错误行为；DPO 用 (chosen, rejected)
+#   偏好对直接拉开两者概率差——正是修"知道答案却拒答"的对症信号。
+# 初始化与参考模型均为 SFT 合并版（saves/tcmtox-merged-v1）：
+#   KL 项衡量偏离原行为的幅度，beta 控制强度。
+# ⚠ lr 必须远小于 SFT（5e-6 vs 1e-4）：大了会把拒答能力一起洗掉（对齐税）。
+# 启动：cd ~/codeWorkSpace/tcmtox && CUDA_VISIBLE_DEVICES=2 \
+#        llamafactory-cli train tcmtox-llm/train/dpo_qwen35_9b.yaml
+
+### 模型（DPO 的 init = 参考模型 = SFT 合并版）
+model_name_or_path: /home/zhl/codeWorkSpace/tcmtox/saves/tcmtox-merged-v1
+trust_remote_code: true
+
+### 方法
+stage: dpo
+do_train: true
+finetuning_type: lora
+lora_target: all
+lora_rank: 32
+lora_alpha: 64
+lora_dropout: 0.05
+pref_beta: 0.1          # KL 约束强度：保守值，防对齐税
+pref_loss: sigmoid      # 标准 DPO loss
+
+### 数据（pairs.jsonl 由 rag/build_dpo_pairs.py 生成）
+dataset: tcmtox_dpo
+dataset_dir: tcmtox-llm/data
+template: qwen3_5_nothink
+cutoff_len: 1536
+overwrite_cache: true
+preprocessing_num_workers: 8
+
+### 输出
+output_dir: saves/tcmtox-dpo-v1
+logging_steps: 5
+save_steps: 100
+plot_loss: true
+overwrite_output_dir: true
+
+### 超参（数据 ~350 对，小步微调）
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 4     # 有效 batch = 16
+learning_rate: 5.0e-6              # ⚠ SFT 的 1/20，DPO 保守值
+num_train_epochs: 2.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true
+gradient_checkpointing: true
+
+### 训练后合并导出：
+# llamafactory-cli export --model_name_or_path /home/zhl/codeWorkSpace/tcmtox/saves/tcmtox-merged-v1 \
+#   --adapter_name_or_path saves/tcmtox-dpo-v1 \
+#   --template qwen3_5_nothink --export_dir saves/tcmtox-merged-v2 \
+#   --export_size 4 --export_legacy_format false

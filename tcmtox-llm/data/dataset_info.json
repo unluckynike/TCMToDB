@@ -14,5 +14,15 @@
       "query": "input",
       "response": "output"
     }
+  },
+  "tcmtox_dpo": {
+    "file_name": "dpo/pairs.jsonl",
+    "ranking": true,
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "chosen": "chosen",
+      "rejected": "rejected"
+    }
   }
 }
