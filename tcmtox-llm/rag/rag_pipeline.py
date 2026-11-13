@@ -89,6 +89,8 @@ def main():
     ap.add_argument("--strategy", choices=["a", "b"], default="b",
                     help="a=全字段注入，b=按问题类型选字段")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--skip-first", type=int, default=0,
+                    help="跳过数据集前 N 条（配合多次挖掘避免负例重复）")
     ap.add_argument("--out-dir", default=str(BASE / "tcmtox-llm" / "eval" / "results"))
     ap.add_argument("--tag", default="", help="默认 <模型名>-rag")
     ap.add_argument("--max-tokens", type=int, default=512)
@@ -105,6 +107,8 @@ def main():
 
     tag = args.tag or (Path(args.model).name + "-rag")
     test = [json.loads(l) for l in open(args.data, encoding="utf-8") if l.strip()]
+    if args.skip_first > 0:
+        test = test[args.skip_first:]
     if args.limit > 0:
         test = test[:args.limit]
 
