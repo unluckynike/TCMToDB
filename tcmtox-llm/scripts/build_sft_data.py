@@ -124,21 +124,32 @@ def build_t1(herbs, yd):
         g = norm(h["Toxicity_grade"])
         note = grade_note(h)
         # T1a 分级
-        q = rot([f"{cn}的毒性分级是什么？",
-                 f"中药{cn}的毒性分级属于哪一级？",
-                 f"请问{cn}是几毒药材？"], i)
         a = f"{cn}：{note}"
         if cn in yd:
             a += f"药典规定用量：{yd[cn]['dosage']}。"
-        emit(R, "T1a", q, a, key, src=["TCMTox_herb_clean", "yd2020_toxic83"])
+        for q in [f"{cn}的毒性分级是什么？",
+                  f"中药{cn}的毒性分级属于哪一级？",
+                  f"请问{cn}是几毒药材？",
+                  f"{cn}的毒性是大毒、有毒还是小毒？",
+                  f"查一下{cn}的毒性分级。",
+                  f"{cn}在药典里的毒性分级是什么？",
+                  f"帮我查查{cn}有没有毒性分级？属于哪一级？",
+                  f"{cn}这味药的毒性等级是什么？",
+                  f"说说{cn}的毒性分级情况。"]:
+            emit(R, "T1a", q, a, key, src=["TCMTox_herb_clean", "yd2020_toxic83"])
         # T1b 有毒吗
         if g:
-            q = rot([f"{cn}有毒吗？毒性强不强？",
-                     f"服用{cn}会中毒吗？"], i)
             a = (f"是的，{cn}属于毒性中药，{note}" if cn not in yd else f"{cn}属于毒性中药，{note}")
             if cn in yd and norm(yd[cn]["precaution"]):
                 a += f"使用注意：{yd[cn]['precaution']}。"
-            emit(R, "T1b", q, a, key, src=["TCMTox_herb_clean", "yd2020_toxic83"])
+            for q in [f"{cn}有毒吗？毒性强不强？",
+                      f"服用{cn}会中毒吗？",
+                      f"{cn}有没有毒性？",
+                      f"听说{cn}是毒性药材，是真的吗？",
+                      f"{cn}这味药安全性怎么样？会不会有毒？",
+                      f"请问{cn}属不属于有毒中药材？",
+                      f"{cn}的毒性强弱如何？"]:
+                emit(R, "T1b", q, a, key, src=["TCMTox_herb_clean", "yd2020_toxic83"])
         # T1c 性味归经
         props, mer = norm(h["Properties"]), norm(h["Meridians"])
         if props or mer:
@@ -199,7 +210,13 @@ def build_t2(herbs, yd):
             ans = (f"《中国药典》2020年版{cn}注意事项未特别提示孕妇禁忌"
                    f"（{prec if prec else '无特别注意事项记载'}）。"
                    f"{cn}为{norm(y['grade'])}药材，孕期使用仍应严格遵医嘱。")
-        emit(R, "T2c", f"孕妇可以使用{cn}吗？", ans, cn, src=["yd2020_toxic83"])
+        for q in [f"孕妇可以使用{cn}吗？",
+                  f"怀孕期间能服用{cn}吗？",
+                  f"孕妇用{cn}安全吗？需要注意什么？",
+                  f"{cn}对孕妇有影响吗？",
+                  f"孕期妇女是否禁用{cn}？",
+                  f"家里孕妇想用{cn}调理，可以用吗？"]:
+            emit(R, "T2c", q, ans, cn, src=["yd2020_toxic83"])
         # T2d 配伍
         m = re.search(r"不宜与(.+?)同用", prec)
         if m:
@@ -300,10 +317,16 @@ def build_t6(herbs, yd):
         orig_en = norm(h["Toxicity_original"])
         orig_cn = EN2CN.get(orig_en.lower(), orig_en)
         now = norm(h["Toxicity_grade"])
-        emit(R, "T6e", rot([f"{cn}是{orig_cn}吗？", f"听说{cn}毒性分级是{orig_cn}，对吗？"], len(R)),
-             f"不对。按《中国药典》2020年版，{cn}的毒性分级为「{now}」。"
-             f"TCMToxDB库内原始标注为{orig_en}（{orig_cn}），本数据集已按药典校正。",
-             cn, src=["TCMTox_herb_clean", "yd2020_toxic83"])
+        for q in [f"{cn}是{orig_cn}吗？",
+                  f"听说{cn}毒性分级是{orig_cn}，对吗？",
+                  f"网上说{cn}是{orig_cn}药材，靠谱吗？",
+                  f"有人讲{cn}属于{orig_cn}，这个说法对不对？",
+                  f"{cn}的毒性分级是{orig_cn}吗？还是别的？",
+                  f"帮我确认下{cn}到底是不是{orig_cn}？"]:
+            emit(R, "T6e", q, f"不对。按《中国药典》2020年版，{cn}的毒性分级为「{now}」。"
+                 f"TCMToxDB库内原始标注为{orig_en}（{orig_cn}），本数据集已按药典校正。",
+                 cn, src=["TCMTox_herb_clean", "yd2020_toxic83"])
+
     return R
 
 # ---------------------------------------------------------------- T7
@@ -534,21 +557,46 @@ def build_t5(yd, fherbs):
 
 # ---------------------------------------------------------------- 切分
 def split_by_group(records, name):
-    """按 meta.key 分组切分；T6 按更高 test 比例过采样，保证 test 中 T6 ≥15%"""
+    """分层实体组切分（v2，论文评测集扩容）：
+    - 有分级的药材组（grade 任务核心）：65% train / 35% test —— 分级测试集 n 21→200+
+    - T6 拒答类：55/10/35 维持高 test 占比
+    - 其余：85/5/10
+    key 形态：药材组为 HERB00xxx，成分组为 ing|名称，靶点组为 gene|uniport，方剂组为方名"""
     rng = random.Random(SEED + hash(name) % 1000)
     groups = defaultdict(list)
     for r in records:
         groups[r["meta"]["key"]].append(r)
-    keys = sorted(groups.keys())
-    rng.shuffle(keys)
-    if name == "T6":
-        n = len(keys)
-        n_tr, n_va = int(n * 0.55), int(n * 0.10)
-        parts = {"train": keys[:n_tr], "val": keys[n_tr:n_tr + n_va], "test": keys[n_tr + n_va:]}
-    else:
-        n = len(keys)
-        n_tr, n_va = int(n * 0.90), int(n * 0.05)
-        parts = {"train": keys[:n_tr], "val": keys[n_tr:n_tr + n_va], "test": keys[n_tr + n_va:]}
+    graded_keys, other_keys = [], []
+    for k in sorted(groups.keys()):
+        (graded_keys if k.startswith("HERB") else other_keys).append(k)
+    rng.shuffle(graded_keys)
+    rng.shuffle(other_keys)
+
+    # 按组内任务分层：T6 组 55/10/35（拒答 test 高占比）；药材组 65/15/35（分级 test 扩容）；其余 85/5/10
+    t6_keys = [k for k in other_keys
+               if groups[k][0]["meta"]["task"].startswith("T6")]
+    other_keys = [k for k in other_keys
+                  if not groups[k][0]["meta"]["task"].startswith("T6")]
+
+    parts = {"train": [], "val": [], "test": []}
+    n_g = len(graded_keys)
+    n_tr, n_va = int(n_g * 0.65), int(n_g * 0.15)
+    parts["train"] += graded_keys[:n_tr]
+    parts["val"] += graded_keys[n_tr:n_tr + n_va]
+    parts["test"] += graded_keys[n_tr + n_va:]
+
+    n_t = len(t6_keys)
+    n_tr, n_va = int(n_t * 0.55), int(n_t * 0.10)
+    parts["train"] += t6_keys[:n_tr]
+    parts["val"] += t6_keys[n_tr:n_tr + n_va]
+    parts["test"] += t6_keys[n_tr + n_va:]
+
+    n_o = len(other_keys)
+    n_tr, n_va = int(n_o * 0.85), int(n_o * 0.05)
+    parts["train"] += other_keys[:n_tr]
+    parts["val"] += other_keys[n_tr:n_tr + n_va]
+    parts["test"] += other_keys[n_tr + n_va:]
+
     out = {"train": [], "val": [], "test": []}
     for split, ks in parts.items():
         for k in ks:
