@@ -1,0 +1,31 @@
+{
+ "orig_file": "results/finetuned-v1_fulltest_zeroshot.jsonl",
+ "para_file": "results/finetuned-v1_para_zeroshot.jsonl",
+ "unmatched": 0,
+ "grade": {
+  "n": 586,
+  "orig": 0.878839590443686,
+  "para": 0.8464163822525598,
+  "delta": -0.03242320819112621,
+  "good2bad": 36,
+  "bad2good": 17,
+  "hold": 533
+ },
+ "refusal": {
+  "n": 80,
+  "orig": 1.0,
+  "para": 0.95,
+  "delta": -0.050000000000000044,
+  "good2bad": 4,
+  "bad2good": 0,
+  "hold": 76
+ },
+ "f1": {
+  "n": 630,
+  "orig": 0.8643650516575614,
+  "para": 0.7533314897321638,
+  "delta": -0.1110335619253976,
+  "f1_down_gt01": 167,
+  "f1_up_gt01": 7
+ }
+}
