@@ -75,7 +75,7 @@ Deterministic (SEED=42). Each script reads `tcmtox_data/` and writes regenerable
 - [x] LoRA fine-tuning (single L20, 49 min) — 8/9 acceptance criteria passed
 - [x] Comparison report (verdict archived in tcmtox-llm/docs/训练与评测.md)
 - [x] RAG retrieval layer (5 iterations, system-level acceptance 9/9; SMILES exact-match 5.9% → 52.9%)
-- [x] Multi-LLM zero-shot comparison on the expanded test set (n=1,313; DeepSeek-V4.1-Flash / Gemma-4) — grade accuracy 87.9% vs ~25%, toxicity mislabel 1.7% vs 49–64%, T6 refusal 100% vs 44–56%
+- [x] Same-set zero-shot comparison on the expanded test (n=1,313; base Qwen3.5-9B / DeepSeek-V4.1-Flash / Gemma-4 / fine-tuned) — grade accuracy 13.8% / 25.1% / 24.6% vs **87.9%**, toxicity mislabel 55% / 64% / 49% vs **1.7%**: gains come from domain SFT, not the base model
 - [x] Neo4j knowledge graph (1,804 nodes / ~4,600 edges incl. incompatibility edges)
 - [x] Streaming QA service + Bencao-Cinnabar visualization UI (retrieval pipeline / graph / stats)
 
