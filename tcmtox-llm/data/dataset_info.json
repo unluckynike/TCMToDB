@@ -24,5 +24,13 @@
       "chosen": "chosen",
       "rejected": "rejected"
     }
+  },
+  "tcmtox_sft_v2": {
+    "file_name": "sft/train_v2.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
   }
 }

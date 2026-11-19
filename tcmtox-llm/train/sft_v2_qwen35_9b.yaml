@@ -1,0 +1,56 @@
+# SFT v2（问法鲁棒性增广版）——LLaMA-Factory
+# 相对 v1 唯一变化：训练集 tcmtox_sft → tcmtox_sft_v2（模板 6927 + DeepSeek 口语改写 6912 = 13,839 条），
+# 超参与 v1 完全一致（bf16 LoRA rank32 全线性层 / lr 1e-4 cosine / 有效 batch 16 / 3 epochs / cutoff 1024），
+# 保证"只动数据不动配方"的归因。val 集保持模板版（sft/val.jsonl）以对齐 eval loss 轨迹。
+# 动机与验收线见 docs/训练与评测.md 八：口语改写后 F1 0.864→0.753、拒答 100%→95%，
+# v2 目标：改写集 F1 ≥0.82、拒答 100%、模板集主指标不回归。
+# 启动（服务器）：cd ~/codeWorkSpace/tcmtox && CUDA_VISIBLE_DEVICES=4 \
+#        llamafactory-cli train tcmtox-llm/train/sft_v2_qwen35_9b.yaml
+
+### 模型
+model_name_or_path: /home/zhl/codeWorkSpace/llms/Qwen3.5-9B
+trust_remote_code: true
+
+### 方法
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: all
+lora_rank: 32
+lora_alpha: 64
+lora_dropout: 0.05
+
+### 数据（v2 = 模板 + 口语改写混合）
+dataset: tcmtox_sft_v2
+dataset_dir: tcmtox-llm/data
+eval_dataset: tcmtox_sft_val
+template: qwen3_5_nothink
+cutoff_len: 1024
+overwrite_cache: true
+preprocessing_num_workers: 8
+
+### 输出
+output_dir: saves/tcmtox-sft-v3-adapter
+logging_steps: 50
+save_steps: 500
+eval_strategy: steps
+eval_steps: 200
+plot_loss: true
+overwrite_output_dir: true
+
+### 超参（与 v1 一致；数据 2.2 倍 → 预计 ~110 分钟）
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 4     # 有效 batch = 16
+learning_rate: 1.0e-4
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true
+gradient_checkpointing: true
+per_device_eval_batch_size: 8
+
+### 训练后合并导出：
+# llamafactory-cli export --model_name_or_path /home/zhl/codeWorkSpace/llms/Qwen3.5-9B \
+#   --adapter_name_or_path saves/tcmtox-sft-v3-adapter \
+#   --template qwen3_5_nothink --export_dir saves/tcmtox-merged-v3 \
+#   --export_size 4 --export_legacy_format false
